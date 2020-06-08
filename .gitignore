@@ -3,3 +3,5 @@
 *.pt
 *.csv
 *.pyc
+*.tpr
+*.xtc
