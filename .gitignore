@@ -1,0 +1,5 @@
+## Large dataset files
+*.npz
+*.pt
+*.csv
+*.pyc
