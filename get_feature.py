@@ -19,9 +19,8 @@ u = md.Universe(params['s'], params['f'])
 
 prop = Propensity(u, t=params['t'], n_data_frame=params['n_data_frame'])
 propensity = prop.get_propensity()
-print(prop.frame_list)
 
 op = OrderParameter(u, frame_list=prop.frame_list)
 op_list = op.get_order_parameter()
 
-np.savez(params['o'], feature=op_list, propensity=propensity)
+np.savez(params['o'], feature=op_list, propensity=propensity, frame_list=prop.frame_list)
