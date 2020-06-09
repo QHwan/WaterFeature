@@ -4,6 +4,50 @@ import MDAnalysis as md
 import tqdm
 
 
+class Jump:
+    def __init__(self, universe, t_i=0):
+        self.universe = universe
+
+        self.n_frame = len(self.universe.trajectory)
+        self.dt = self.universe.trajectory[1].time - self.universe.trajectory[0].time
+        self.t_i = t_i
+        self.frame_i = int(self.t_i/self.dt)
+
+        self.ow = self.universe.select_atoms("name OW")
+        self.n_ow = len(self.ow)
+
+        self.D_max = 1.5
+
+    def get_jump_time(self):
+        self.jump_time_vec = np.zeros(self.n_ow)
+        self.jump_occur_vec = np.zeros(self.n_ow, dtype=int)
+        com_mat = np.zeros((self.n_ow, 3))
+        for i, ts in tqdm.tqdm(enumerate(self.universe.trajectory), total=self.n_frame):
+            pos_ow_mat = self.ow.positions
+            if i == 0:
+                com_mat += pos_ow_mat
+            else:
+                dist_vec = self._distance(com_mat, pos_ow_mat)
+                idx_jump = (dist_vec > self.D_max) & (self.jump_occur_vec == 0)
+                t_jump = i*self.dt
+                self.jump_time_vec[idx_jump] += t_jump
+                self.jump_occur_vec[idx_jump] += 1
+
+                com_mat *= i
+                com_mat += pos_ow_mat
+                com_mat /= i+1
+
+            if self.jump_occur_vec.sum() == self.n_ow:
+                break
+
+    def _distance(self, x_i, x_j):
+        dist = np.zeros(len(x_i))
+        for i in range(3):
+            dist += (x_j[:,i] - x_i[:,i])**2
+        
+        return(np.sqrt(dist))
+
+
 
 class Propensity:
     def __init__(self, universe, t, n_data_frame):

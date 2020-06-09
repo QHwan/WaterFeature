@@ -1,7 +1,7 @@
 import argparse
 import numpy as np
 import MDAnalysis as md
-from propensity import Propensity
+from propensity import Propensity, Jump
 from order_parameter import OrderParameter
 
 parser = argparse.ArgumentParser()
@@ -17,10 +17,10 @@ params = vars(args)
 
 u = md.Universe(params['s'], params['f'])
 
-prop = Propensity(u, t=params['t'], n_data_frame=params['n_data_frame'])
-propensity = prop.get_propensity()
+jump = Jump(u)
+jump.get_jump_time()
 
-op = OrderParameter(u, frame_list=prop.frame_list)
+op = OrderParameter(u, frame_list=[0])
 op_list = op.get_order_parameter()
 
-np.savez(params['o'], feature=op_list, propensity=propensity, frame_list=prop.frame_list)
+np.savez(params['o'], feature=op_list, jump=jump.jump_time_vec)

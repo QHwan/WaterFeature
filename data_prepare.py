@@ -17,7 +17,7 @@ class BulkDataset(Dataset):
 
         n_fea = 12
         x_w = w_file['feature'].reshape(-1, n_fea)
-        y_w = w_file['propensity'].flatten()
+        y_w = w_file['jump'].flatten()
 
         data = np.concatenate((x_w, y_w.reshape(-1,1)), axis=1)
 
