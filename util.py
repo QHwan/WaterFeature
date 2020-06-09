@@ -3,29 +3,6 @@ from numba import jit
 import scipy
 
 '''
-cpdef long[:, :] get_adj(double[:, :] sqr_dist_ow_mat, double r_cut):
-    cdef long i, j, n_ow
-    cdef long[:] idx_sorted_sqr_dist_ow_vec
-    cdef long[:, :] adj
-    cdef double[:] sqr_dist_ow_vec, sorted_sqr_dist_ow_vec
-
-    n_ow = len(sqr_dist_ow_mat)
-    adj = np.zeros((n_ow, n_ow), dtype=long)
-
-    for i in range(n_ow):
-        sqr_dist_ow_vec = sqr_dist_ow_mat[i]
-
-        idx_sorted_sqr_dist_ow_vec = np.argsort(sqr_dist_ow_vec, kind='mergesort')
-        sorted_sqr_dist_ow_vec = np.sort(sqr_dist_ow_vec, kind='mergesort')
-
-        for j in range(1, n_ow):
-            if sorted_sqr_dist_ow_vec[j] > r_cut*r_cut:
-                break
-            else:
-                #adj[i, idx_sorted_sqr_dist_ow_vec[j]] = 1
-                adj[i, idx_sorted_sqr_dist_ow_vec[j]] = 1/np.sqrt(sorted_sqr_dist_ow_vec[j])
-
-    return adj
 
 
 

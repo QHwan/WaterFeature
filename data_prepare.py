@@ -40,6 +40,38 @@ class BulkDataset(Dataset):
             self.Ys[idx]))
 
 
+class GraphDataset(Dataset):
+    def __init__(self):
+        w_filename = "data.npz"
+        w_file = np.load(w_filename, allow_pickle=True)
+
+        x_w = w_file['feature']
+        y_w = w_file['q_tet']
+        a_w = w_file['adj']
+
+        self.n_fea = x_w.shape[-1]
+
+        '''
+        self.scaler = StandardScaler()
+        self.scaler.fit(data)
+        data_norm = self.scaler.transform(data)
+        self.Xs = data_norm[:,:-1]
+        self.Ys = data_norm[:,-1]
+        '''
+
+        self.Xs = x_w
+        self.Ys = y_w
+        self.As = a_w
+
+    def __len__(self):
+        return(len(self.Ys))
+
+    def __getitem__(self, idx):
+        return((torch.from_numpy(self.Xs[idx]).float(),
+            torch.from_numpy(self.As[idx]).float(),
+            self.Ys[idx]))
+
+
 def collate_data(dataset):
     batch_Xs = []
     batch_Ys = []
@@ -50,6 +82,22 @@ def collate_data(dataset):
     batch_Ys = np.array(batch_Ys)
     
     return(torch.stack(batch_Xs, dim=0),
+        torch.from_numpy(batch_Ys).float())
+
+
+def collate_graph_data(dataset):
+    batch_Xs = []
+    batch_As = []
+    batch_Ys = []
+    for i, (Xs, As, Ys) in enumerate(dataset):
+        batch_Xs.append(Xs)
+        batch_As.append(As)
+        batch_Ys.append(Ys)
+
+    batch_Ys = np.array(batch_Ys)
+    
+    return(torch.stack(batch_Xs, dim=0),
+        torch.stack(batch_As, dim=0),
         torch.from_numpy(batch_Ys).float())
 
 
@@ -76,6 +124,32 @@ def load_data(params):
     test_loader = DataLoader(testset, **dataloader_args)
 
     return(dataset, train_loader, val_loader, test_loader)
+
+
+def load_graph_data(params):
+    dataset = GraphDataset()
+    n_data = len(dataset)
+    n_train = int(n_data*params['train_ratio'])
+    n_val = int(n_data*params['val_ratio'])
+    n_test = n_data - n_train - n_val
+    
+    trainset, valset, testset = random_split(dataset, [n_train, n_val, n_test])
+    #trainset = Subset(dataset, list(range(n_train)))
+    #valset = Subset(dataset, list(range(n_train, n_train+n_val)))
+    #testset = Subset(dataset, list(range(n_train+n_val, n_train+n_val+n_test)))
+
+    dataloader_args = {'batch_size': params['n_batch'],
+                       'shuffle': True,
+                       'pin_memory': False,
+                       'drop_last': True,
+                       'collate_fn': collate_graph_data,}
+
+    train_loader = DataLoader(trainset, **dataloader_args)
+    val_loader = DataLoader(valset, **dataloader_args)
+    test_loader = DataLoader(testset, **dataloader_args)
+
+    return(dataset, train_loader, val_loader, test_loader)
+
 
 
 def load_predict_data(params, file):

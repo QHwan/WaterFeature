@@ -105,16 +105,21 @@ def qlm_average_to_ql(qlm_average_matrix, l=4):
 
 
 class OrderParameter:
-    def __init__(self, universe, n_neighbor=10, frame_list=None):
+    def __init__(self, universe, n_neighbor=10, frame_list=None, angular=False):
         self.universe = universe
         self.n_frame = len(self.universe.trajectory)
         self.n_neighbor = n_neighbor
         self.ow = self.universe.select_atoms("name OW")
         self.n_ow = len(self.ow)
-        self.n_fea = n_neighbor*4
         self.frame_list = frame_list
         if self.frame_list is None:
             self.frame_list = np.linspace(0, self.n_frame-1, self.n_frame).astype(int)
+
+        self.angular = angular
+        if self.angular:
+            self.n_fea = n_neighbor*4
+        else:
+            self.n_fea = n_neighbor
 
     def _normalize(self, _mat):
         mat = np.zeros((3, 3))
@@ -126,7 +131,7 @@ class OrderParameter:
 
     def get_order_parameter(self):
         n_frame_list = len(self.frame_list)
-        self.fea_list = np.zeros((n_frame_list, self.n_ow, self.n_fea))
+        self.fea_list = np.zeros((n_frame_list, self.n_ow, self.n_fea))       
         self.q_tet_list = np.zeros((n_frame_list, self.n_ow, 1))
         self.lsi_list = np.zeros((n_frame_list, self.n_ow, 1))
 
@@ -164,14 +169,17 @@ class OrderParameter:
                 _rot_mat[2] += np.cross(r_ia_vec, r_ib_vec)
                 rot_mat = self._normalize(_rot_mat).T
                 
-
-                for k in range(self.n_neighbor):
-                    r_ij_vec = pos_nei_ow_mat[k] - pos_ow_vec
-                    rp_ij_vec = np.matmul(r_ij_vec, rot_mat)
-                    self.fea_list[i,j,4*k+0] = 1/d_ij_vec[k]
-                    self.fea_list[i,j,4*k+1] = rp_ij_vec[0]/(d_ij_vec[k]**2)
-                    self.fea_list[i,j,4*k+2] = rp_ij_vec[1]/(d_ij_vec[k]**2)
-                    self.fea_list[i,j,4*k+3] = rp_ij_vec[2]/(d_ij_vec[k]**2)
+                if self.angular:
+                    for k in range(self.n_neighbor):
+                        r_ij_vec = pos_nei_ow_mat[k] - pos_ow_vec
+                        rp_ij_vec = np.matmul(r_ij_vec, rot_mat)
+                        self.fea_list[i,j,4*k+0] = 1/d_ij_vec[k]
+                        self.fea_list[i,j,4*k+1] = rp_ij_vec[0]/(d_ij_vec[k]**2)
+                        self.fea_list[i,j,4*k+2] = rp_ij_vec[1]/(d_ij_vec[k]**2)
+                        self.fea_list[i,j,4*k+3] = rp_ij_vec[2]/(d_ij_vec[k]**2)
+                else:
+                    for k in range(self.n_neighbor):
+                        self.fea_list[i,j,k] = 1/d_ij_vec[k]
 
                 
                 # q_tet
@@ -206,6 +214,43 @@ class OrderParameter:
 
 
 
+class Adjacency:
+    def __init__(self, universe, r_cut=3.5, frame_list=None):
+        self.universe = universe
+        self.n_frame = len(self.universe.trajectory)
+        self.r_cut = r_cut
+        self.ow = self.universe.select_atoms("name OW")
+        self.n_ow = len(self.ow)
+        self.frame_list = frame_list
+        if self.frame_list is None:
+            self.frame_list = np.linspace(0, self.n_frame-1, self.n_frame).astype(int)
+
+    def get_adj(self):
+        n_frame_list = len(self.frame_list)
+        self.adj_list = np.zeros((n_frame_list, self.n_ow, self.n_ow))
+
+        for i, frame in tqdm.tqdm(enumerate(self.frame_list), total=n_frame_list):
+            ts = self.universe.trajectory[frame]
+            box = ts.dimensions
+            pos_ow_mat = self.ow.positions
+
+            dist_ow_mat = np.zeros((self.n_ow, self.n_ow))
+            dist_ow_mat = mdanadist.distance_array(pos_ow_mat,
+                            pos_ow_mat,
+                            box=box,
+                            )
+
+            for j in range(self.n_ow):
+                dist_ow_vec = dist_ow_mat[i]
+
+                idx_sorted_dist_ow_vec = np.argsort(dist_ow_vec, kind='mergesort')
+                sorted_dist_ow_vec = np.sort(dist_ow_vec, kind='mergesort')
+
+                for k in range(1, self.n_ow):
+                    if sorted_dist_ow_vec[k] > self.r_cut:
+                        break
+                    else:
+                        self.adj_list[i, j, idx_sorted_dist_ow_vec[k]] = 1
 
 
 

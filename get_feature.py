@@ -1,8 +1,7 @@
 import argparse
 import numpy as np
 import MDAnalysis as md
-from propensity import Propensity, Jump
-from parameter import OrderParameter
+from parameter import OrderParameter, Adjacency
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--s', type=str, help='topology file')
@@ -21,7 +20,11 @@ u = md.Universe(params['s'], params['f'])
 par = OrderParameter(u, frame_list=np.linspace(0, 2500, 101).astype(int))
 par.get_order_parameter()
 
+adj = Adjacency(u, frame_list=np.linspace(0, 2500, 101).astype(int))
+adj.get_adj()
+
 np.savez(params['o'], 
     feature=par.fea_list,
+    adj=adj.adj_list,
     q_tet=par.q_tet_list,
     lsi=par.lsi_list,)
