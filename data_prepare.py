@@ -7,7 +7,7 @@ from collections import Counter
 import sparse
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split, Subset
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.utils import shuffle
 
 class BulkDataset(Dataset):
@@ -15,22 +15,22 @@ class BulkDataset(Dataset):
         w_filename = "data.npz"
         w_file = np.load(w_filename, allow_pickle=True)
 
-        n_fea = 12
+        n_fea = 40
         x_w = w_file['feature'].reshape(-1, n_fea)
-        y_w = w_file['jump'].flatten()
+        y_w = w_file['lsi'].flatten()
 
         data = np.concatenate((x_w, y_w.reshape(-1,1)), axis=1)
 
-        
+        '''
         self.scaler = StandardScaler()
         self.scaler.fit(data)
         data_norm = self.scaler.transform(data)
         self.Xs = data_norm[:,:-1]
         self.Ys = data_norm[:,-1]
-        
+        '''
 
-        #self.Xs = x_w
-        #self.Ys = y_w
+        self.Xs = x_w
+        self.Ys = y_w
 
     def __len__(self):
         return(len(self.Ys))
@@ -38,7 +38,6 @@ class BulkDataset(Dataset):
     def __getitem__(self, idx):
         return((torch.from_numpy(self.Xs[idx]).float(),
             self.Ys[idx]))
-
 
 
 def collate_data(dataset):
@@ -52,7 +51,6 @@ def collate_data(dataset):
     
     return(torch.stack(batch_Xs, dim=0),
         torch.from_numpy(batch_Ys).float())
-
 
 
 def load_data(params):
@@ -78,7 +76,6 @@ def load_data(params):
     test_loader = DataLoader(testset, **dataloader_args)
 
     return(dataset, train_loader, val_loader, test_loader)
-
 
 
 def load_predict_data(params, file):

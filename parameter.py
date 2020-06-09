@@ -105,23 +105,30 @@ def qlm_average_to_ql(qlm_average_matrix, l=4):
 
 
 class OrderParameter:
-    def __init__(self, universe, n_neighbor=8, frame_list=None):
+    def __init__(self, universe, n_neighbor=10, frame_list=None):
         self.universe = universe
         self.n_frame = len(self.universe.trajectory)
         self.n_neighbor = n_neighbor
         self.ow = self.universe.select_atoms("name OW")
         self.n_ow = len(self.ow)
-        self.n_fea = 12
+        self.n_fea = n_neighbor*4
         self.frame_list = frame_list
         if self.frame_list is None:
             self.frame_list = np.linspace(0, self.n_frame-1, self.n_frame).astype(int)
 
+    def _normalize(self, _mat):
+        mat = np.zeros((3, 3))
+        for i in range(3):
+            vec = _mat[i]
+            norm = np.sqrt(vec[0]**2 + vec[1]**2 + vec[2]**2)
+            mat[i] += vec/norm
+        return(mat)
+
     def get_order_parameter(self):
         n_frame_list = len(self.frame_list)
-        self.d_list = np.zeros((n_frame_list, self.n_ow, 50))
+        self.fea_list = np.zeros((n_frame_list, self.n_ow, self.n_fea))
         self.q_tet_list = np.zeros((n_frame_list, self.n_ow, 1))
         self.lsi_list = np.zeros((n_frame_list, self.n_ow, 1))
-        self.q_list = np.zeros((n_frame_list, self.n_ow, 5))
 
         for i, frame in tqdm.tqdm(enumerate(self.frame_list), total=n_frame_list):
             ts = self.universe.trajectory[frame]
@@ -141,18 +148,32 @@ class OrderParameter:
                 sorted_dist_ow_vec = np.sort(dist_ow_vec, kind='mergesort')
 
                 pos_ow_vec = pos_ow_mat[j]
+                pos_nei_ow_mat = np.zeros((self.n_neighbor, 3))
+                d_ij_vec = np.zeros(self.n_neighbor)
+
+                for k in range(self.n_neighbor):
+                    pos_nei_ow_mat[k] += pos_ow_mat[idx_sorted_dist_ow_vec[k+1]]
+                    d_ij_vec[k] += sorted_dist_ow_vec[k+1]
 
                 
-                # d
-                d_vec = np.zeros(10)
-
-                for k in range(len(d_vec)):
-                    d_vec[k] = sorted_dist_ow_vec[k+1]
-
-                for k in range(10):
-                    self.d_list[i, j, k] = 1/d_vec[k]
+                _rot_mat = np.zeros((3, 3))
+                r_ia_vec = pos_nei_ow_mat[0] - pos_ow_vec
+                r_ib_vec = pos_nei_ow_mat[1] - pos_ow_vec
+                _rot_mat[0] += r_ia_vec
+                _rot_mat[1] += r_ib_vec - np.dot(r_ia_vec, r_ib_vec) * r_ia_vec
+                _rot_mat[2] += np.cross(r_ia_vec, r_ib_vec)
+                rot_mat = self._normalize(_rot_mat).T
                 
 
+                for k in range(self.n_neighbor):
+                    r_ij_vec = pos_nei_ow_mat[k] - pos_ow_vec
+                    rp_ij_vec = np.matmul(r_ij_vec, rot_mat)
+                    self.fea_list[i,j,4*k+0] = 1/d_ij_vec[k]
+                    self.fea_list[i,j,4*k+1] = rp_ij_vec[0]/(d_ij_vec[k]**2)
+                    self.fea_list[i,j,4*k+2] = rp_ij_vec[1]/(d_ij_vec[k]**2)
+                    self.fea_list[i,j,4*k+3] = rp_ij_vec[2]/(d_ij_vec[k]**2)
+
+                
                 # q_tet
                 q_tet = get_q_tet(pos_ow_mat, pos_ow_vec, box, idx_sorted_dist_ow_vec)
                 self.q_tet_list[i, j, 0] = q_tet
@@ -183,79 +204,6 @@ class OrderParameter:
 
                 self.lsi_list[i, j, 0] = lsi
 
-
-            # q3 & q4 & q5 & q6 & q12
-            q3lm_mat = []
-            q4lm_mat = []
-            q5lm_mat = []
-            q6lm_mat = []
-            q12lm_mat = []
-
-            for j in range(self.n_ow):
-
-                dist_ow_vec = dist_ow_mat[j]
-
-                sorted_dist_ow_vec = np.sort(dist_ow_vec, kind='mergesort')
-                idx_sorted_dist_ow_vec = np.argsort(dist_ow_vec, kind='mergesort')
-
-                angle_matrix = []
-
-                pos_ow_vec = pos_ow_mat[j]
-                
-                sph_coord_mat = []
-
-
-                for k in range(1, self.n_neighbor+1):
-
-                    idx_k = idx_sorted_dist_ow_vec[k]
-
-                    pos_ow_i_vec = pos_ow_mat[idx_k]
-                    pos_ow_i_vec = pbc(pos_ow_i_vec, pos_ow_vec, box)
-
-                    x, y, z = pos_ow_i_vec - pos_ow_vec
-
-                    r, theta, pi = cartesian_to_spherical(x, y, z)
-
-                    sph_coord_mat.append([r, theta, pi])
-
-                sph_coord_mat = np.array(sph_coord_mat)
-
-                y3lm_mat = get_ylm_matrix(sph_coord_mat, l=3)
-                y4lm_mat = get_ylm_matrix(sph_coord_mat, l=4)
-                y5lm_mat = get_ylm_matrix(sph_coord_mat, l=5)
-                y6lm_mat = get_ylm_matrix(sph_coord_mat, l=6)
-                y12lm_mat = get_ylm_matrix(sph_coord_mat, l=12)
-
-                q3lm_vec = ylm_to_qlm(y3lm_mat, l=3)
-                q4lm_vec = ylm_to_qlm(y4lm_mat, l=4)
-                q5lm_vec = ylm_to_qlm(y5lm_mat, l=5)
-                q6lm_vec = ylm_to_qlm(y6lm_mat, l=6)
-                q12lm_vec = ylm_to_qlm(y12lm_mat, l=12)
-
-                q3lm_mat.append(q3lm_vec)
-                q4lm_mat.append(q4lm_vec)
-                q5lm_mat.append(q5lm_vec)
-                q6lm_mat.append(q6lm_vec)
-                q12lm_mat.append(q12lm_vec)
-
-            q3lm_avg_mat = qlm_to_qlm_average(q3lm_mat, dist_ow_mat, self.n_neighbor, l=3)
-            q4lm_avg_mat = qlm_to_qlm_average(q4lm_mat, dist_ow_mat, self.n_neighbor, l=4)
-            q5lm_avg_mat = qlm_to_qlm_average(q5lm_mat, dist_ow_mat, self.n_neighbor, l=5)
-            q6lm_avg_mat = qlm_to_qlm_average(q6lm_mat, dist_ow_mat, self.n_neighbor, l=6)
-            q12lm_avg_mat = qlm_to_qlm_average(q12lm_mat, dist_ow_mat, self.n_neighbor, l=12)
-
-            q3 = qlm_average_to_ql(q3lm_avg_mat, l=3)
-            q4 = qlm_average_to_ql(q4lm_avg_mat, l=4)
-            q5 = qlm_average_to_ql(q5lm_avg_mat, l=5)
-            q6 = qlm_average_to_ql(q6lm_avg_mat, l=6)
-            q12 = qlm_average_to_ql(q12lm_avg_mat, l=12)
-
-            for j in range(self.n_ow):
-                self.q_list[i, j, 0] = q3[j]
-                self.q_list[i, j, 1] = q4[j]
-                self.q_list[i, j, 2] = q5[j]
-                self.q_list[i, j, 3] = q6[j]
-                self.q_list[i, j, 4] = q12[j]
 
 
 

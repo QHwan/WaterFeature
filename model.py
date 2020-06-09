@@ -13,24 +13,26 @@ class NN(nn.Module):
 
         self.act = nn.ReLU
 
-        self.fc1 = nn.Linear(n_in, 64)
+        self.fc1 = nn.Linear(n_in, 128)
         self.act1 = self.act()
 
-        self.fc2 = nn.Linear(64, 32)
-        self.act2 = self.act()
+        #self.fc2 = nn.Linear(128, 64)
+        #self.act2 = self.act()
 
-        self.fc3 = nn.Linear(32, n_out)
+        self.enc1 = nn.Linear(128, 2)
+        self.act3 = nn.LeakyReLU()
 
-        self.dropout = nn.Dropout(.1)
+        self.fc3 = nn.Linear(2, n_out)
+
+        self.dropout = nn.Dropout(.2)
 
     def forward(self, X):
         X = self.fc1(X)
         X = self.act1(X)
         X = self.dropout(X)
 
-        X = self.fc2(X)
-        X = self.act2(X)
+        X_enc = self.enc1(X)
 
-        X = self.fc3(X)
-        return(X)
+        X = self.fc3(X_enc)
+        return(X, X_enc)
 

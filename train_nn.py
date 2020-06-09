@@ -54,13 +54,13 @@ def train(model, optimizer, criterion, train_loader):
         X, Y = X.to(device), Y.to(device)
         optimizer.zero_grad()
 
-        net_out = model(X)
+        net_out, _ = model(X)
 
         loss = criterion(net_out.squeeze(), Y)
         loss.backward()
         optimizer.step()
         
-        loss_train += loss.cpu().data.numpy()
+        loss_train += loss.data.numpy()
 
     return(loss_train/len(train_loader))
 
@@ -72,7 +72,7 @@ def validate(model, optimizer, criterion, val_loader):
         X, Y = batch
         X, Y = X.to(device), Y.to(device)
 
-        net_out = model(X)
+        net_out, _ = model(X)
         
         loss_val += criterion(net_out.squeeze(), Y)
 
@@ -82,23 +82,28 @@ def validate(model, optimizer, criterion, val_loader):
 def test(model, optimizer, criterion, test_loader):
     loss_test = 0.
     pred_test = []
+    encoded = []
     for i, batch in enumerate(test_loader,):
         X, Y = batch
         X, Y = X.to(device), Y.to(device)
 
-        net_out = model(X)
+        net_out, _ = model(X)
         
         loss_test += criterion(net_out.squeeze(), Y)
 
         # output probability
-        net_out = model(X)
-        Y_pred = net_out.detach().cpu().numpy()
-        Y = Y.detach().cpu().numpy()
+        net_out, X_encoded = model(X)
+        Y_pred = net_out.detach().numpy()
+        Y = Y.detach().numpy()
         
         for j in range(len(Y)):
             pred_test.append([Y[j], Y_pred[j]])
 
-    return(loss_test/len(test_loader), np.array(pred_test))
+        X_encoded = X_encoded.detach().numpy()
+        for j in range(len(X_encoded)):
+            encoded.append(X_encoded[j])
+
+    return(loss_test/len(test_loader), np.array(pred_test), np.array(encoded))
 
     
 
@@ -145,6 +150,8 @@ if params['resume']:
 
 best_error = 1e8
 for i in range(params['n_epoch']):
+    t = time.time()
+
     loss_train  = train(model,
                         optimizer,
                         criterion,
@@ -167,15 +174,15 @@ for i in range(params['n_epoch']):
         'params': params
     }, is_best)
 
-    print('Epoch: {} \tTraining Loss: {:.4f} \tValidation Loss: {:.4f} '.format(
-        i, loss_train, loss_val))
+    print('Epoch: {} \tTime: {:.4f} \tTraining Loss: {:.4f} \tValidation Loss: {:.4f} '.format(
+        i, time.time()-t, loss_train, loss_val))
 
 if params['test']:
-    loss_test, pred_test = test(model,
-                                optimizer,
-                                criterion,
-                                test_loader,
-                                )
+    loss_test, pred_test, encoded = test(model,
+                                        optimizer,
+                                        criterion,
+                                        test_loader,
+                                        )
     print("Test Loss: {:.4f}".format(loss_test))
-    print(scipy.stats.pearsonr(pred_test[:,0], pred_test[:,1]))
-    np.savetxt("test2.xvg", pred_test)
+    print(metrics.mean_squared_error(pred_test[:,0], pred_test[:,1]))
+    np.savez("test.npz", pred=pred_test, encode=encoded, allow_pickle=True)
